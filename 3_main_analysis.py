@@ -1,3 +1,4 @@
+#-*- coding:utf8 -*-
 import numpy
 from scipy.misc import imread
 from matplotlib import pyplot as plt
@@ -10,6 +11,22 @@ import os
 from subprocess import call
 import sys
 
+from fix_grammar import TGrammarCorrector
+from fix_grammar import tokenize
+from fix_grammar import good_word
+from fix_grammar import is_alpha
+
+grammar_corrector = TGrammarCorrector()
+
+#print grammar_corrector.correct_word(u"фернол")
+#print "cool"
+#exit()
+
+freq_dict = set()
+for line in open("freq_dict.txt"):
+  word = line.decode("utf8").split("\t")[0]
+  freq = int(line.decode("utf8").split("\t")[1])
+  freq_dict.add(word)
 
 def upload_cuneiform(fname):
     text = open(fname).read().decode("utf8").replace("\n", " ")
@@ -27,6 +44,7 @@ def upload_cuneiform(fname):
             parag_added =  False
             update_line = False
             text = re.findall("<span class='ocr_line.+?>(.+?)<span class='ocr_cinfo'.+?<\/span>", line)[0]
+            text = re.subn("</*[a-z]+[^>]*>", "", text)[0]
             coords = [int(item) for item in re.findall("title=\"bbox ([0-9 -]+)\"", line)[0].strip().split()]
             block_y_min, block_x_min, block_y_max, block_x_max = coords
             
@@ -239,7 +257,7 @@ for fname in os.listdir(img_path):
             
             line_heights = [block[0][1] - block[0][0] for block in cune_letters]
             line_heights.sort()
-            line_height_avg =  line_heights[len(line_heights) / 2]        
+            line_height_avg = line_heights and line_heights[len(line_heights) / 2] or 1   
         
         if "remove small image blocks":
             image_blocks = [block for block in image_blocks\
@@ -275,12 +293,12 @@ for fname in os.listdir(img_path):
             del draw
             page_no_imgs.save("tmp.tif")
             call("cuneiform -f hocr  -l rus tmp.tif -o tmp.cune_out".split())
-            cune_paragraphs, cune_letters, line2text = upload_cuneiform("tmp.cune_out")   
+            cune_paragraphs, cune_letters, cune_texts = upload_cuneiform("tmp.cune_out")   
         
         if """ merge verticaly divided paragraphs """:
             line_heights = [block[0][1] - block[0][0] for block in cune_letters]
             line_heights.sort()
-            line_height_avg =  line_heights[len(line_heights) / 2]
+            line_height_avg = line_heights and line_heights[len(line_heights) / 2] or 1  
             parag_coordinates = []
             for parag in cune_paragraphs:
                 min_x, max_x = 100000, -10000
@@ -312,7 +330,53 @@ for fname in os.listdir(img_path):
                             print "MERGE", first, second
                 if not used:
                     break
-                cune_paragraphs = [cune_paragraphs[first] for first  in xrange(len(cune_paragraphs)) if not first in used]     
+                cune_paragraphs = [cune_paragraphs[first] for first  in xrange(len(cune_paragraphs)) if not first in used]  
+                
+        
+        
+        formulas = []
+        if """extract gibberish""":
+            filtered_paragraphs = []
+            for paragraph in cune_paragraphs:
+                parag_text = [cune_texts[line] for line in paragraph]
+                parag_text = [tokenize(line) for line in parag_text]
+                for line_index in xrange(len(parag_text) - 1):
+                    cur_last_word = parag_text[line_index][-1]
+                    last_is_dash = False
+                    if cur_last_word in u"‒–—―-" and len(parag_text[line_index]) > 1:
+                        cur_last_word = parag_text[line_index][-2]
+                        last_is_dash = True
+                    next_first_word = parag_text[line_index + 1][0]
+                    compound = cur_last_word + next_first_word
+                    if next_first_word[0] in u"aбвгдежзиклмнопрстуфхцчшщэюя" and (last_is_dash or compound.lower() in freq_dict):
+                        if not last_is_dash:
+                            parag_text[line_index][-1] = compound
+                        else:
+                            parag_text[line_index][-2] = compound
+                            parag_text[line_index] = parag_text[line_index][:-1]
+                        parag_text[line_index + 1] = parag_text[line_index + 1][1:]
+                full_text = []
+                for words in parag_text:
+                    full_text += words
+                good_words = 0
+                corrected_words = []
+                for word in full_text:
+                    corrected_word = grammar_corrector.correct_word(word.lower())
+                    corrected_words += [corrected_word]
+                    if is_alpha(corrected_word) and corrected_word in grammar_corrector.dict and  grammar_corrector.dict[corrected_word] > 10:
+                        good_words += 1
+                if len(full_text) == 1 and good_words != 1 or good_words < 2:
+                    formulas += [paragraph]
+                else:
+                    filtered_paragraphs += [paragraph]
+                print good_words, len(full_text)
+                print " ".join(full_text)
+                print " ".join(corrected_words)
+                print 
+            cune_paragraphs = filtered_paragraphs
+                
+                        
+                    
     
     colored_image = original_image.convert("RGB")
     draw = ImageDraw.Draw(colored_image)
@@ -367,6 +431,17 @@ for fname in os.listdir(img_path):
         draw.line((block[1][0],  block[0][0], block[1][0], block[0][1] )  , width = 3, fill=color )
         draw.line((block[1][1],  block[0][0], block[1][1], block[0][1] )  , width = 3, fill=color )
         draw.line((block[1][0],  block[0][1], block[1][1], block[0][1] )  , width = 3, fill=color )    
+
+    for paragraph in formulas:
+        parag_block = paragraph[0]
+        for block in paragraph:
+            parag_block = merge_blocks(parag_block, block)
+        block = parag_block     
+        color = (255, 255, 0)
+        draw.line((block[1][0],  block[0][0], block[1][1], block[0][0] )  , width = 3, fill=color )
+        draw.line((block[1][0],  block[0][0], block[1][0], block[0][1] )  , width = 3, fill=color )
+        draw.line((block[1][1],  block[0][0], block[1][1], block[0][1] )  , width = 3, fill=color )
+        draw.line((block[1][0],  block[0][1], block[1][1], block[0][1] )  , width = 3, fill=color )  
     
     del draw
     colored_image.save("_" + fname + ".png")
