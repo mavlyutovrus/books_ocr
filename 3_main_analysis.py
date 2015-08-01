@@ -11,17 +11,14 @@ import os
 from subprocess import call
 import sys
 
+
 from fix_grammar import TGrammarCorrector
 from fix_grammar import tokenize
 from fix_grammar import good_word
 from fix_grammar import is_alpha
+from gi.overrides.keysyms import paragraph
 
 grammar_corrector = TGrammarCorrector()
-
-#print grammar_corrector.correct_word(u"фернол")
-#print "cool"
-#exit()
-
 freq_dict = set()
 for line in open("freq_dict.txt"):
   word = line.decode("utf8").split("\t")[0]
@@ -213,51 +210,39 @@ def max_distance(first, second):
     elif second_left > first_right:
         distances[1] = second_left - first_right
     return max(distances)
+
 def merge_blocks(first, second):
     return ( (min(first[0][0], second[0][0]), max(first[0][1], second[0][1])), 
              (min(first[1][0], second[1][0]), max(first[1][1], second[1][1])) )
     
 
+def do_ocr(page):
+    page.save("tmp.tif")
+    call("cuneiform -f hocr  -l rus tmp.tif -o tmp.cune_out".split())
+    cune_paragraphs, cune_letters, cune_texts = upload_cuneiform("tmp.cune_out")
+    return  cune_paragraphs, cune_letters, cune_texts 
 
-import os
-img_path = "chemtxt/tiff_scrappler/imgs/"
-img_path = "rotated/"
-orf_path = "orfs/"
-cuneiform_path = "cuneiform/"
 
-processed = 0
 
-for fname in os.listdir(img_path):
-    if not fname.endswith(".tif"):
-        continue
-    processed += 1
-    if processed > 20:
-        break    
-    #if not "0187" in fname:
-    #    continue
-    print fname
-    cune_paragraphs, cune_letters, cune_texts = upload_cuneiform(cuneiform_path + fname)
-    original_image = Image.open(img_path + fname)
-    
-    
+def do_main_analysis(original_image):
+    cune_paragraphs, cune_letters, cune_texts = do_ocr(original_image)
     image_blocks = []
-    
     if 1:
         if "initial image blocks":
             image_mat_no_text = get_matrix(original_image)
-            for paragraph in cune_paragraphs:
-                for line in paragraph:
-                    for letter in cune_letters:
-                        x_min, x_max  = letter[0]
-                        y_min, y_max  = letter[1] 
-                        image_mat_no_text[x_min:x_max, y_min:y_max] = 0
+            #for paragraph in cune_paragraphs:
+            #    for line in paragraph:
+            for letter in cune_letters:
+                x_min, x_max  = letter[0]
+                y_min, y_max  = letter[1] 
+                image_mat_no_text[x_min:x_max, y_min:y_max] = 0
                         
             initial_block = ( (0, image_mat_no_text.shape[0]), (0, image_mat_no_text.shape[1]) )
             detect_non_empty_blocks(image_mat_no_text, initial_block, image_blocks)
             
-            line_heights = [block[0][1] - block[0][0] for block in cune_letters]
-            line_heights.sort()
-            line_height_avg = line_heights and line_heights[len(line_heights) / 2] or 1   
+        line_heights = [block[0][1] - block[0][0] for block in cune_letters]
+        line_heights.sort()
+        line_height_avg = line_heights and line_heights[len(line_heights) / 2] or 1   
         
         if "remove small image blocks":
             image_blocks = [block for block in image_blocks\
@@ -327,7 +312,7 @@ for fname in os.listdir(img_path):
                                  merged_paragraph += [merge_blocks(first_line, second_line)]
                                  cune_texts[merged_paragraph[-1]] = cune_texts[first_line] + " " + cune_texts[second_line]
                             cune_paragraphs[first] = merged_paragraph
-                            print "MERGE", first, second
+                            #print "MERGE", first, second
                 if not used:
                     break
                 cune_paragraphs = [cune_paragraphs[first] for first  in xrange(len(cune_paragraphs)) if not first in used]  
@@ -335,18 +320,18 @@ for fname in os.listdir(img_path):
         
         
         formulas = []
-        if """extract gibberish""":
+        if """extract good paragraphs""":
             filtered_paragraphs = []
             for paragraph in cune_paragraphs:
                 parag_text = [cune_texts[line] for line in paragraph]
                 parag_text = [tokenize(line) for line in parag_text]
                 for line_index in xrange(len(parag_text) - 1):
-                    cur_last_word = parag_text[line_index][-1]
+                    cur_last_word = parag_text[line_index] and parag_text[line_index][-1] or " "
                     last_is_dash = False
                     if cur_last_word in u"‒–—―-" and len(parag_text[line_index]) > 1:
                         cur_last_word = parag_text[line_index][-2]
                         last_is_dash = True
-                    next_first_word = parag_text[line_index + 1][0]
+                    next_first_word = parag_text[line_index + 1] and parag_text[line_index + 1][0] or " "
                     compound = cur_last_word + next_first_word
                     if next_first_word[0] in u"aбвгдежзиклмнопрстуфхцчшщэюя" and (last_is_dash or compound.lower() in freq_dict):
                         if not last_is_dash:
@@ -363,21 +348,84 @@ for fname in os.listdir(img_path):
                 for word in full_text:
                     corrected_word = grammar_corrector.correct_word(word.lower())
                     corrected_words += [corrected_word]
-                    if is_alpha(corrected_word) and corrected_word in grammar_corrector.dict and  grammar_corrector.dict[corrected_word] > 10:
+                    if is_alpha(corrected_word) and len(corrected_word) > 2 and corrected_word in grammar_corrector.dict and  grammar_corrector.dict[corrected_word] > 10:
                         good_words += 1
                 if len(full_text) == 1 and good_words != 1 or good_words < 2:
                     formulas += [paragraph]
                 else:
                     filtered_paragraphs += [paragraph]
-                print good_words, len(full_text)
-                print " ".join(full_text)
-                print " ".join(corrected_words)
-                print 
+                #print good_words, len(full_text)
+                #print " ".join(full_text)
+                #print " ".join(corrected_words)
+                #print 
             cune_paragraphs = filtered_paragraphs
-                
+        
+        formulas = []
+        if """ update formulas """:
+            image_mat_no_text_no_imgs = get_matrix(original_image)
+            for paragraph in cune_paragraphs:
+                for line in paragraph:
+                    x_min, x_max  = line[0]
+                    y_min, y_max  = line[1] 
+                    image_mat_no_text_no_imgs[x_min:x_max, y_min:y_max] = 0
+            for block in image_blocks:
+                x_min, x_max  = block[0]
+                y_min, y_max  = block[1] 
+                image_mat_no_text_no_imgs[x_min:x_max, y_min:y_max] = 0
                         
-                    
+            initial_block = ( (0, image_mat_no_text_no_imgs.shape[0]), (0, image_mat_no_text_no_imgs.shape[1]) )
+            detect_non_empty_blocks(image_mat_no_text_no_imgs, initial_block, formulas)
+            
+            line_heights = [block[0][1] - block[0][0] for block in cune_letters]
+            line_heights.sort()
+            line_height_avg = line_heights and line_heights[len(line_heights) / 2] or 1 
+            
+            
+            if "remove small blocks":
+                formulas = [block for block in formulas\
+                                     if (block[0][1] - block[0][0] >= 0.5 * line_height_avg or \
+                                     block[1][1] - block[1][0] >= 0.5 *  line_height_avg)]
+            
+            if "join formulas' blocks":
+                while True:
+                    used = set()
+                    for first in xrange(len(formulas)):
+                        if first in used:
+                            continue
+                        for second in xrange(first + 1, len(formulas)):
+                            if max_distance(formulas[first], formulas[second]) < 2 * line_height_avg:
+                                formulas[first] = merge_blocks(formulas[first], formulas[second])
+                                used.add(second)
+                    if not used:
+                        break
+                    formulas = [formulas[index] for index in xrange(len(formulas)) if not index in used]
+            
+            if "remove not big formulas blocks":
+                formulas = [block for block in formulas\
+                                     if (block[0][1] - block[0][0] > 0.5 * line_height_avg and \
+                                     block[1][1] - block[1][0] > 0.5 * line_height_avg)]
+    def dump_block(block):
+        return ",".join(str(item) for item in [block[0][0], block[0][1], block[1][0], block[1][1]])
     
+    dump_line = ""
+    for paragraph in cune_paragraphs:
+        dump_line += "paragraph\t" + " ".join([dump_block(line) for line in paragraph])
+        dump_line += "\n"
+    if 1:
+        dump_line += "letters\t" + " ".join([dump_block(line) for line in cune_letters])
+        dump_line += "\n"
+    for block in image_blocks:
+        dump_line += "images\t" + " ".join([dump_block(line) for line in image_blocks])
+        dump_line += "\n"   
+    for block in formulas:
+        dump_line += "formulas\t" + " ".join([dump_block(line) for line in formulas])
+        dump_line += "\n"  
+    for block, text in cune_texts.items():
+        dump_line += "text\t" + dump_block(block) + "\t" + text.encode("utf8")
+        dump_line += "\n"
+    return dump_line
+    
+    """
     colored_image = original_image.convert("RGB")
     draw = ImageDraw.Draw(colored_image)
     
@@ -395,7 +443,7 @@ for fname in os.listdir(img_path):
             draw.line((line_block[1][1],  line_block[0][0], line_block[1][1], line_block[0][1] )  , width = 1, fill=(0, 255, 0) )
             draw.line((line_block[1][0],  line_block[0][1], line_block[1][1], line_block[0][1] )  , width = 1, fill=(0, 255, 0) )                  
     
-    """
+    
     for block in cune_letters:
         block_x_min, block_x_max = block[0]
         block_y_min, block_y_max = block[1]
@@ -409,8 +457,7 @@ for fname in os.listdir(img_path):
             draw.line((line_block[1][0],  line_block[0][0], line_block[1][0], line_block[0][1] )  , width = 1, fill=(255, 255, 0) )
             draw.line((line_block[1][1],  line_block[0][0], line_block[1][1], line_block[0][1] )  , width = 1, fill=(255, 255, 0) )
             draw.line((line_block[1][0],  line_block[0][1], line_block[1][1], line_block[0][1] )  , width = 1, fill=(255, 255, 0) )
-    """
-    """
+    
     for paragraph in cune_paragraphs:
         parag_block = paragraph[0]
         for block in paragraph:
@@ -420,7 +467,6 @@ for fname in os.listdir(img_path):
             draw.line((block[1][1],  block[0][0], block[1][1], block[0][1] )  , width = 3, fill=color )
             draw.line((block[1][0],  block[0][1], block[1][1], block[0][1] )  , width = 3, fill=color )
             parag_block = merge_blocks(parag_block, block)
-    """
     for paragraph in cune_paragraphs:
         parag_block = paragraph[0]
         for block in paragraph:
@@ -432,19 +478,30 @@ for fname in os.listdir(img_path):
         draw.line((block[1][1],  block[0][0], block[1][1], block[0][1] )  , width = 3, fill=color )
         draw.line((block[1][0],  block[0][1], block[1][1], block[0][1] )  , width = 3, fill=color )    
 
-    for paragraph in formulas:
-        parag_block = paragraph[0]
-        for block in paragraph:
-            parag_block = merge_blocks(parag_block, block)
-        block = parag_block     
-        color = (255, 255, 0)
-        draw.line((block[1][0],  block[0][0], block[1][1], block[0][0] )  , width = 3, fill=color )
-        draw.line((block[1][0],  block[0][0], block[1][0], block[0][1] )  , width = 3, fill=color )
-        draw.line((block[1][1],  block[0][0], block[1][1], block[0][1] )  , width = 3, fill=color )
-        draw.line((block[1][0],  block[0][1], block[1][1], block[0][1] )  , width = 3, fill=color )  
+    for block in formulas:
+        color = (0, 0, 255)
+        draw.line((block[1][0],  block[0][0], block[1][1], block[0][0] )  , width = 10, fill=color )
+        draw.line((block[1][0],  block[0][0], block[1][0], block[0][1] )  , width = 10, fill=color )
+        draw.line((block[1][1],  block[0][0], block[1][1], block[0][1] )  , width = 10, fill=color )
+        draw.line((block[1][0],  block[0][1], block[1][1], block[0][1] )  , width = 10, fill=color )  
     
     del draw
-    colored_image.save("_" + fname + ".png")
+    colored_image.save("_out.png")
+    """
 
 
-
+in_path = "016774_rot/"
+out_path = "016774_blocks/"
+processed = 0
+for fname in os.listdir(in_path):
+    if len(fname) < 4:
+        continue
+    processed += 1
+    if processed % 10 == 0:
+        print "..processed", processed
+    if os.path.isfile(out_path + fname):
+        continue
+    print fname
+    original_image = Image.open(in_path + fname)
+    dump = do_main_analysis(original_image)
+    open(out_path + fname, "w").write(dump)
