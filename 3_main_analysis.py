@@ -16,7 +16,6 @@ from fix_grammar import TGrammarCorrector
 from fix_grammar import tokenize
 from fix_grammar import good_word
 from fix_grammar import is_alpha
-from gi.overrides.keysyms import paragraph
 
 grammar_corrector = TGrammarCorrector()
 freq_dict = set()
