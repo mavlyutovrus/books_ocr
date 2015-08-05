@@ -40,9 +40,7 @@ def draw_mockup(original_image, paragraphs, letters, formulas, images, block2tex
     original_image = original_image.copy()
     colored_image = original_image.convert("RGB")
     draw = ImageDraw.Draw(colored_image)
-    print images
     for block in images:
-        print block
         draw.line((block[1][0],  block[0][0], block[1][1], block[0][0] )  , width = 10, fill=(255, 0, 0) )
         draw.line((block[1][0],  block[0][0], block[1][0], block[0][1] )  , width = 10, fill=(255, 0, 0) )
         draw.line((block[1][1],  block[0][0], block[1][1], block[0][1] )  , width = 10, fill=(255, 0, 0) )
@@ -89,7 +87,7 @@ def join_parag_text(paragraph, block2text):
     for line_index in xrange(len(parag_text) - 1):
         cur_last_word = parag_text[line_index] and parag_text[line_index][-1] or " "
         last_is_dash = False
-        if cur_last_word in u"‒–—―-" and len(parag_text[line_index]) > 1:
+        if cur_last_word in u"‒–—―---" and len(parag_text[line_index]) > 1:
             cur_last_word = parag_text[line_index][-2]
             last_is_dash = True
         next_first_word = parag_text[line_index + 1] and parag_text[line_index + 1][0] or " "
@@ -153,13 +151,11 @@ def convert_parag2html_block(parag_lines, block2text, block, whole_page_block, h
     
     line_heights = [line_block[0][1] - line_block[0][0] for line_block in parag_lines]
     line_heights.sort()
-    line_height = int(line_heights[len(line_heights) / 2] * x_scale * 0.8)
+    PADDING = 2
+    line_height = int((line_heights[len(line_heights) / 2] - 2 * PADDING) * x_scale * 0.9)
     
     
-    
-    print parag_lines
     text = join_parag_text(parag_lines, block2text) 
-    print text.encode("utf8")
     
     
     html_block = """<p style="font-size: %dpx; top: %dpx; left: %dpx; width: %dpx; height: %dpx; z-index: %d; position: absolute; " >\n %s</p>\n""" %\
@@ -198,7 +194,7 @@ def create_html_pages(images_input_dir, blocks_input_dir, output_dir):
     for fname in files:
         processed += 1
         if processed % 20 == 0:
-            break
+            print "..processed", processed
         
         html_filename = output_dir + fname.split(".")[0] + ".html"
         

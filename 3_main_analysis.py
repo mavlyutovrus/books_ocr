@@ -423,72 +423,8 @@ def do_main_analysis(original_image):
         dump_line += "text\t" + dump_block(block) + "\t" + text.encode("utf8")
         dump_line += "\n"
     return dump_line
-    
-    """
-    colored_image = original_image.convert("RGB")
-    draw = ImageDraw.Draw(colored_image)
-    
-    for block in image_blocks:
-        block_x_min, block_x_max = block[0]
-        block_y_min, block_y_max = block[1]
-        block_lines = []
-        draw.line((block[1][0],  block[0][0], block[1][1], block[0][0] )  , width = 10, fill=(255, 0, 0) )
-        draw.line((block[1][0],  block[0][0], block[1][0], block[0][1] )  , width = 10, fill=(255, 0, 0) )
-        draw.line((block[1][1],  block[0][0], block[1][1], block[0][1] )  , width = 10, fill=(255, 0, 0) )
-        draw.line((block[1][0],  block[0][1], block[1][1], block[0][1] )  , width = 10, fill=(255, 0, 0) )    
-        for line_block, letter_blocks in block_lines:
-            draw.line((line_block[1][0],  line_block[0][0], line_block[1][1], line_block[0][0] )  , width = 1, fill=(0, 255, 0) )
-            draw.line((line_block[1][0],  line_block[0][0], line_block[1][0], line_block[0][1] )  , width = 1, fill=(0, 255, 0) )
-            draw.line((line_block[1][1],  line_block[0][0], line_block[1][1], line_block[0][1] )  , width = 1, fill=(0, 255, 0) )
-            draw.line((line_block[1][0],  line_block[0][1], line_block[1][1], line_block[0][1] )  , width = 1, fill=(0, 255, 0) )                  
-    
-    
-    for block in cune_letters:
-        block_x_min, block_x_max = block[0]
-        block_y_min, block_y_max = block[1]
-        block_lines = []
-        draw.line((block[1][0],  block[0][0], block[1][1], block[0][0] )  , width = 10, fill=(255, 255, 0) )
-        draw.line((block[1][0],  block[0][0], block[1][0], block[0][1] )  , width = 10, fill=(255, 255, 0) )
-        draw.line((block[1][1],  block[0][0], block[1][1], block[0][1] )  , width = 10, fill=(255, 255, 0) )
-        draw.line((block[1][0],  block[0][1], block[1][1], block[0][1] )  , width = 10, fill=(255, 255, 0) )    
-        for line_block, letter_blocks in block_lines:
-            draw.line((line_block[1][0],  line_block[0][0], line_block[1][1], line_block[0][0] )  , width = 1, fill=(255, 255, 0) )
-            draw.line((line_block[1][0],  line_block[0][0], line_block[1][0], line_block[0][1] )  , width = 1, fill=(255, 255, 0) )
-            draw.line((line_block[1][1],  line_block[0][0], line_block[1][1], line_block[0][1] )  , width = 1, fill=(255, 255, 0) )
-            draw.line((line_block[1][0],  line_block[0][1], line_block[1][1], line_block[0][1] )  , width = 1, fill=(255, 255, 0) )
-    
-    for paragraph in cune_paragraphs:
-        parag_block = paragraph[0]
-        for block in paragraph:
-            color = (255, 0, 255)
-            draw.line((block[1][0],  block[0][0], block[1][1], block[0][0] )  , width = 3, fill=color )
-            draw.line((block[1][0],  block[0][0], block[1][0], block[0][1] )  , width = 3, fill=color )
-            draw.line((block[1][1],  block[0][0], block[1][1], block[0][1] )  , width = 3, fill=color )
-            draw.line((block[1][0],  block[0][1], block[1][1], block[0][1] )  , width = 3, fill=color )
-            parag_block = merge_blocks(parag_block, block)
-    for paragraph in cune_paragraphs:
-        parag_block = paragraph[0]
-        for block in paragraph:
-            parag_block = merge_blocks(parag_block, block)
-        block = parag_block     
-        color = (255, 0, 255)
-        draw.line((block[1][0],  block[0][0], block[1][1], block[0][0] )  , width = 3, fill=color )
-        draw.line((block[1][0],  block[0][0], block[1][0], block[0][1] )  , width = 3, fill=color )
-        draw.line((block[1][1],  block[0][0], block[1][1], block[0][1] )  , width = 3, fill=color )
-        draw.line((block[1][0],  block[0][1], block[1][1], block[0][1] )  , width = 3, fill=color )    
 
-    for block in formulas:
-        color = (0, 0, 255)
-        draw.line((block[1][0],  block[0][0], block[1][1], block[0][0] )  , width = 10, fill=color )
-        draw.line((block[1][0],  block[0][0], block[1][0], block[0][1] )  , width = 10, fill=color )
-        draw.line((block[1][1],  block[0][0], block[1][1], block[0][1] )  , width = 10, fill=color )
-        draw.line((block[1][0],  block[0][1], block[1][1], block[0][1] )  , width = 10, fill=color )  
-    
-    del draw
-    colored_image.save("_out.png")
-    """
-
-
+"""
 in_path = "016774_rot/"
 out_path = "016774_blocks/"
 processed = 0
@@ -504,3 +440,4 @@ for fname in os.listdir(in_path):
     original_image = Image.open(in_path + fname)
     dump = do_main_analysis(original_image)
     open(out_path + fname, "w").write(dump)
+"""

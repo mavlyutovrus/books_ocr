@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>TrajStore Client</title>
+    	<script src="jquery.min.js"></script>
+        <link rel="stylesheet" href="jquery-ui.css">
+        <script src="jquery-1.10.2.js"></script>
+        <script src="jquery-ui.js"></script>
+        <style>
+            body, html {
+                padding: 0px;
+                margin: 0px;
+            }
+            
+            #palette {
+                padding: 0px;
+                margin: 0px;
+                position: fixed;
+                left:0px;
+                top:0px;
+                width:100vw;
+                height:5vh;
+                border: 2px solid black;
+                background: #ddd;
+                z-index: 115; 
+            }
+            
+            .button {
+                padding-left: 1em;
+                padding-right: 1em;
+                padding: auto;
+                text-align: center;
+                vertical-align: middle;
+                margin-right:2px;
+                height: 95%;
+                font-size: 3vh;
+                float: left;
+                border:1px solid green;
+                background-color: #eee;
+                cursor: pointer;
+            }
+	    #info_block {
+		font-size: 2vh;
+	    }
+            
+            .resizable {
+                width: 150px;
+                height: 150px;
+            }
+            .region {
+                opacity: 0.4;
+                z-index:10;
+                position: absolute;
+                border: 2px solid;
+            }
+            .drawing {
+                 border-color: red;
+            }
+            .paragraph {
+                border-color: blue;
+            }
+            .formulas {
+                border-color: green;
+            }
+            .selected {
+                border-width: 10px;
+                border-style: solid;
+            }
+
+        </style>
+        <script>
+            var selected_elem = 0;
+	    var types = ["paragraph", "drawing", "formulas"];
+            
+            $(function() {
+              $( ".resizable" ).resizable();
+            });
+            $(function() {
+              $( ".draggable" ).draggable();
+            });
+            
+            function clear_selection() {
+                if (selected_elem != 0) {
+                    selected_elem.className = selected_elem.className.replace(" selected", "");
+                    selected_elem = 0;
+                }
+            }
+            function select(elem) {
+                if (selected_elem != 0) {
+                    clear_selection();
+                }
+                selected_elem = elem;
+                selected_elem.className += " selected";
+            }
+            
+            function delete_selected() {
+                if (selected_elem != 0) {
+                    $(selected_elem).remove();
+                    selected_elem = 0;
+                }
+            }
+
+            
+            function add_block(x1, x2, y1, y2, type) {
+                var region = document.createElement("div")
+                region.className = "ui-widget-content resizable draggable region " + type;
+                document.getElementById("edit_space").appendChild(region);
+                var height = x2 - x1;
+                var width = y2 - y1;
+                region.style.width = String(width) + "px";
+                region.style.height = String(height) + "px";
+                region.style.left = String(y1) + "px";
+                region.style.top = String(x1) + "px";
+                $(region).resizable();
+                $(region).draggable();
+                $(region).click( function(){ select(this);  } );
+                return region;
+            }
+            
+            function copy_selected() {
+                if (selected_elem == 0) {
+                    return;
+                }
+                var coords = $(selected_elem).offset();
+                var new_top = coords.top + $(selected_elem).height() + 10;
+                var type = selected_elem.className.indexOf("paragraph") > -1 ? "paragraph" :
+                                selected_elem.className.indexOf("drawing") > -1 ? "drawing" : "formulas";
+                var region = add_block(new_top, new_top + $(selected_elem).height(),
+                                       coords.left, coords.left + $(selected_elem).width(), type); 
+                select(region);
+                
+            }            
+            
+            function clear_regions() {
+		for (var type_index = 0; type_index < types.length; ++type_index) {
+		    var type = types[type_index];
+		    var to_delete = document.getElementsByClassName(type);
+		    for (var index = to_delete.length - 1; index >= 0; --index) {
+			//console.log(to_delete[index]);
+			$(to_delete[index]).remove();
+		    }		    
+		}
+            }
+            
+            
+            function update_blocks(data) {
+                clear_regions();
+                var img_url = data[0];
+		$("#page_img").attr("src", img_url)
+		$("#info_block").text("file: " + img_url);
+                var parag_blocks = data[1];
+                var image_blocks = data[2];
+                var formula_blocks = data[3];
+                var count = 0;
+                for (var index = 0; index < parag_blocks.length; index += 4) {
+                    var x1 = parag_blocks[index];
+                    var x2 = parag_blocks[index + 1];
+                    var y1 = parag_blocks[index + 2];
+                    var y2 = parag_blocks[index + 3];
+                    add_block(x1, x2, y1, y2, "paragraph");
+                    ++count;
+                }
+                for (var index = 0; index < image_blocks.length; index += 4) {
+                    var x1 = image_blocks[index];
+                    var x2 = image_blocks[index + 1];
+                    var y1 = image_blocks[index + 2];
+                    var y2 = image_blocks[index + 3];
+                    add_block(x1, x2, y1, y2, "drawing");
+                    ++count;
+                }
+                for (var index = 0; index < formula_blocks.length; index += 4) {
+                    var x1 = formula_blocks[index];
+                    var x2 = formula_blocks[index + 1];
+                    var y1 = formula_blocks[index + 2];
+                    var y2 = formula_blocks[index + 3];
+                    add_block(x1, x2, y1, y2, "formulas");
+                    ++count;
+                }
+            }
+            
+	    function get_page_data() {
+            	var request = "blalba"	
+                var url = "http://localhost:8084/page_receive?" + request;
+                $.getJSON(url + "?callback=?", null, 
+                    function(data) {
+                        update_blocks(data);
+                    }
+                );
+	    }
+            
+            function send_page_data() {
+		$("#info_block").text("sending.");
+		clear_selection();
+                var paragraphs = document.getElementsByClassName("paragraph");
+                var images = document.getElementsByClassName("drawing");
+                var formulas = document.getElementsByClassName("formulas");
+                var chunks = [paragraphs, images, formulas];
+                var types = ["p", "i", "f"];
+                var url = "http://localhost:8084/page_send?";
+                for (var chunk_index = 0; chunk_index < 3; ++chunk_index) {
+                    for (var index = 0; index < chunks[chunk_index].length; index += 1) {
+                        var element = chunks[chunk_index][index];
+                        var x1 = $(element).position().top;
+                        var x2 = x1 + $(element).height();
+                        var y1 = $(element).position().left;
+                        var y2 = y1 + $(element).width();
+			x1 = Math.floor(Math.round(x1));
+			x2 = Math.floor(Math.round(x2));
+			y1 = Math.floor(Math.round(y1));
+			y2 = Math.floor(Math.round(y2));
+                        url += types[chunk_index] + "=" + String(x1) + "," + String(x2) + "," + String(y1) + "," + String(y2) + "&"
+		    }
+                }
+                url += "page=" + $("#page_img").attr("src");                
+                $.getJSON(url + "?callback=?", null, 
+                    function(data) {
+			$("#info_block").text("");
+                        update_blocks(data);
+                    }
+                );
+                
+            }
+
+	    function next_page() {
+		clear_selection();
+                var url = "http://localhost:8084/next_page?";
+                url += "page=" + $("#page_img").attr("src");                
+                $.getJSON(url + "?callback=?", null, 
+                    function(data) {
+                        update_blocks(data);
+                    }
+                );
+            }
+
+	    function prev_page() {
+		clear_selection();
+                var url = "http://localhost:8084/prev_page?";
+                url += "page=" + $("#page_img").attr("src");                
+                $.getJSON(url + "?callback=?", null, 
+                    function(data) {
+                        update_blocks(data);
+                    }
+                );
+            }
+            
+        </script>
+    </head>
+    <body>
+        
+    <div id="palette" style="">
+        <div class="button" onclick="add_block($('#palette').offset().top + 200, $('#palette').offset().bottom + 300, 300, 600, 'paragraph');">Paragraph</div>
+        <div class="button" onclick="add_block($('#palette').offset().top + 200, $('#palette').offset().bottom + 300, 300, 600, 'drawing');">Image</div>
+        <div class="button" onclick="add_block($('#palette').offset().top + 200, $('#palette').offset().bottom + 300, 300, 600, 'formulas');">Other</div>
+
+	
+	<div class="button" style="margin-left: 5em; " onclick=" prev_page(); ">&lt;&lt; Prev</div>
+	<div class="button" style="margin-left: 0.1em; " onclick=" next_page(); ">Next &gt;&gt;</div>
+	
+	
+	<div class="button" style="margin-left: 5em; " onclick=" send_page_data(); ">Save</div>
+	<span id="info_block"></span>
+    </div>
+    
+    <div id="edit_space" style="position: relative; left:0px; top:5vh;  border: 0px solid red; z-index: 1; ">
+       <img id="page_img" src="0167740098.png" style="position: absolute; top: 0px; left:0px; border-right: 1px solid blue; z-index: 1; "/>
+    </div>
+    
+    <script>
+        $("html").keyup(function( event ) {
+            if (event.which == 46 ) { //delete selected
+               event.preventDefault();
+               delete_selected();
+            } else if (event.which == 86 && event.ctrlKey) {
+                event.preventDefault();
+                copy_selected(event);
+            }
+        });
+        get_page_data();
+        
+        
+        
+        
+    </script>
+    
+    
+    </body>
+</html>
